@@ -27,7 +27,7 @@
 ## 2. OS
 Ubuntu Server 24.04 LTS 권장(GPU 드라이버·AI 도구 지원이 가장 쉬움). Rocky Linux 9도 가능(고객 환경 호환 시험용으로 나중에 VM 추가).
 
-## 3. 설치 (주인님이 한 번만, 복사·붙여넣기)
+## 3. 설치 — 단계별 상세 절차는 docs/LAB_SETUP.md 참고 (아래는 요약)
 ```bash
 # 3-1. 기본 패키지와 실험 전용 계정(관리자 권한 없이 실행)
 sudo apt update && sudo apt -y upgrade
