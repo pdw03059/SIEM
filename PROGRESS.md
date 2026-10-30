@@ -34,4 +34,4 @@ GitHub 의견 마지막 확인: 2026-10-30T12:00+09:00
 3. `docs/CODING_RULES.md`: 코딩·주석 규칙
 4. `docs/BENCHMARK_PLAN.md`: 성능 목표와 측정 방법
 5. `CONTRIBUTING.md` + CLA 초안(첫 외부 PR 전 필수, 상용 라이선스 병행 대비). 채택 전 PR에 "주인님 확인 필요"로 남길 것
-6. FEATURES.md 보완: REST API 엔드포인트, 위험 점수 산식 등 "확인 못한 영역"(문서 https://docs.logpresso.com/ko/ 공개 페이지만, 문장 복사 금지)
+6. FEATURES.md 보완: REST API 엔드포인트, 위험 점수 산식 등 "확인 못한 영역"(기준 제품 공개 문서만 — 주소는 예약 작업 지시문에 있음, 문장 복사 금지)
