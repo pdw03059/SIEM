@@ -31,7 +31,7 @@ GitHub 의견 마지막 확인: 2026-10-30T12:00+09:00
 - 2026-10-30: 저장소 생성(AGPL-3.0), stage1 프로토타입(UDP syslog 수집기, 기간·키워드 조회기) — 빌드 경고 0, 2만 건 수신·저장, 키워드 검색 200건 테스트 통과
 
 ## 다음 작업 (0단계)
-1. `docs/ARCHITECTURE.md`: 구성 요소·데이터 흐름·저장 포맷 (FEATURES.md의 A·B단계 필수 기능 기준)
+1. `docs/ARCHITECTURE.md`: 구성 요소·데이터 흐름·저장 포맷 (FEATURES.md의 A·B단계 필수 기능 기준). **PLAN.md 9장 필수 반영**: 객체별 통합 시스템 뷰(sys.*) 스키마, 객체 생성 시 대시보드 자동 등록 구조, 외부 DB 없음(SQLite 내장)
 2. `docs/QUERY_LANGUAGE.md`: 쿼리 언어 설계 — 기준 제품 명령어(FEATURES.md 6장)·Splunk SPL·SQL 공개 문서 비교표, 파이프+SQL 문법, 명령어 메타데이터 형식(매뉴얼 자동 생성용). PLAN.md 7장 참고
 3. `include/`: 모듈 간 인터페이스 헤더
 4. `docs/CODING_RULES.md`: 코딩·주석 규칙
