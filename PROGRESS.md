@@ -40,4 +40,4 @@ GitHub 의견 마지막 확인: 2026-10-30T12:00+09:00
 6. `CONTRIBUTING.md` + CLA 초안(첫 외부 PR 전 필수, 상용 라이선스 병행 대비). 채택 전 PR에 "주인님 확인 필요"로 남길 것
 7. FEATURES.md 보완: REST API 엔드포인트, 위험 점수 산식 등 "확인 못한 영역"(기준 제품 공개 문서만 — 주소는 예약 작업 지시문에 있음, 문장 복사 금지)
 8. 제품 웹사이트 W1: `site/` 정적 사이트 뼈대(TypeScript, GitHub Pages). 제품 이름 **MAZKION(마즈키온)** — 설정 파일 한 곳(`site/brand.json`)에 두고, 첫 페이지 맨 위에 ORIGIN.md의 유래를 표시. 페이지: 소개, 기능 목록(FEATURES.md에서 자동 생성·검색, 기준 제품명 노출 금지), 쿼리 매뉴얼 자리, 설치 안내, 대기자 명단(외부 서비스 없이 GitHub 이슈 양식 링크). PLAN.md 7·8장 참고
-9. `docs/TEST_SERVER.md`: 발주자 데스크톱 테스트 서버 준비 가이드(복사·붙여넣기 명령) — GitHub 자체 호스팅 실행기 설치, **외부 PR 실행 차단 설정**, 합성 로그 생성기, FIELD_NOTES L01~L15 장애 재현 시험 목록, 매일 성능 기록. GitHub 제공 실행기용 기본 CI(빌드·경고 0·테스트·퍼징)도 함께
+9. 실험 자동화: `docs/TEST_SERVER.md`(작성 완료) 기준으로 `.github/workflows/` 작성 — GitHub 제공 실행기용 기본 CI(빌드·경고 0·테스트·퍼징, pull_request 포함) + 실험 서버용(라벨 mazkion-lab, push main·night/*·schedule·수동만, pull_request 금지), 합성 로그 생성기, L01~L16 장애 재현 시험 뼈대, 결과를 docs/LAB_RESULTS.md에 기록
