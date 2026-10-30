@@ -127,10 +127,22 @@
 | cpu_pct / mem_bytes / fd_count / threads | 이 수집기가 쓰는 CPU·메모리·파일 핸들·스레드 |
 
 ### 1-11. 의존 관계(멈추면 무엇이 영향받나)
+이 수집기의 데이터를 **직접·간접으로** 쓰는 모든 객체를 자동 추적한다(아래 2-1 sys.dependencies의 결과를 요약).
 | 컬럼 | 설명 |
 |---|---|
-| **dependent_scenarios** | 이 수집기 데이터를 쓰는 탐지 시나리오 수와 목록(멈추면 **탐지 공백**이 생기는 범위) |
-| dependent_profiles / dependent_dashboards / dependent_reports | 행위 프로파일, 대시보드, 보고서 |
+| dep_total | 영향받는 객체 총수(간접 포함) |
+| dep_scenarios | 실시간·배치 탐지 시나리오 |
+| dep_scheduled_queries | 예약 쿼리 |
+| dep_datasets | 데이터셋·조회 테이블(lookup)·요약 테이블 |
+| dep_stream_queries | 스트림 쿼리(이 수집기 데이터를 가공해 다른 테이블로 보내는 것) |
+| dep_profiles | 접속·행위 프로파일, 이상징후 모델의 학습 입력 |
+| dep_dashboards / dep_widgets | 대시보드와 위젯 |
+| dep_reports | 정기 보고서 |
+| dep_alerts / dep_playbooks | 알림 규칙, 자동 대응(플레이북) |
+| dep_explanations | 소명 워크플로(이 데이터로 소명 요청이 만들어지는 규칙) |
+| dep_tables_downstream | 이 데이터가 가공돼 들어가는 하류 테이블 |
+| dep_api_clients | 이 테이블을 조회하는 외부 API 키 |
+| impact_level | 멈췄을 때 영향 등급(탐지 공백·법적 보관 위반·보고서 누락 등 가장 큰 것 기준) |
 | compliance_tags | 법적 보관 의무 표시(예: 개인정보 접속기록 2년) |
 | retention_days / storage_bytes / projected_storage_30d | 보존 기간, 사용 저장 공간, 30일 뒤 예상 |
 | last_queried_at | 누군가 이 데이터를 마지막으로 조회한 시각(오래 안 쓰면 **비용 절감 후보**) |
@@ -155,13 +167,30 @@
 | sys.parsers | 사용 중 수집기 수, 성공률, 느린 정규식 경고 |
 | sys.stream_queries | 처리량, 지연, 오류 격리 건수 |
 | sys.schedules | 다음 실행, 마지막 실행 결과, **놓친 실행 수와 백필 필요 구간** |
-| sys.scenarios | 실행 주기, 마지막 실행, 탐지 건수, 오탐 처리 비율, **입력 데이터 공백 여부**(원천 수집기가 멈췄는지) |
+| sys.scenarios | 실행 주기, 마지막 실행, 탐지 건수, 오탐 처리 비율, **입력 데이터 공백 여부**(원천 수집기가 멈췄는지), 입력 테이블·데이터셋·프로파일 목록(sys.dependencies) |
+| sys.datasets | 데이터셋·조회 테이블: 크기, 마지막 갱신, 갱신 실패, 원천, 사용처 수 |
+| sys.services | 내부 서비스별 상태와 서로의 의존 관계, 시작 실패 시 첫 원인 오류 |
 | sys.profiles | 학습 기간, 마지막 학습, 기준선 대상 수 |
 | sys.tickets / sys.explanations | 상태별 건수, 평균 처리 시간, 기한 초과, 소명 링크 **열람 확인 여부** |
 | sys.users | 권한, 마지막 로그인, 비밀번호 만료, 휴면 계정 |
 | sys.replication | 대기 노드와의 지연(건수·시간), 마지막 확인, 복제 중단 사유 |
 | sys.license | 일 수집량 대비 한도, 30일 추세, 한도 초과 예상일 |
 | sys.alerts / sys.audit | 열린 알림, 관리자 행위 감사 기록 |
+
+## 2-1. sys.dependencies — 의존 관계 그래프(모든 객체 공통)
+모든 객체 사이의 "누가 누구의 데이터를 쓰는가"를 한 표로 관리한다. 객체를 만들거나 쿼리·설정을 바꿀 때 **자동으로** 갱신된다(쿼리 언어의 테이블 참조를 파싱해 추출).
+| 컬럼 | 설명 |
+|---|---|
+| from_type / from_id / from_name | 데이터를 내주는 쪽(수집기·테이블·데이터셋·스트림 쿼리·프로파일 등) |
+| to_type / to_id / to_name | 데이터를 쓰는 쪽(시나리오·예약 쿼리·데이터셋·프로파일·대시보드·위젯·보고서·알림·플레이북·소명 규칙·하류 테이블·API 키) |
+| relation | reads, writes, enriches(조회 테이블), trains(프로파일 학습), triggers(알림·플레이북) |
+| depth | 직접 1, 간접 2 이상 |
+| detected_at / last_used_at | 관계가 생긴 시각, 실제로 마지막 사용된 시각 |
+사용처:
+- **영향 분석**: 수집기·테이블·데이터셋을 끄거나 지우기 전에 "이걸 바꾸면 시나리오 7개, 예약 쿼리 3개, 프로파일 2개, 대시보드 5개가 영향받습니다" 경고와 목록을 보여 줌.
+- **원인 역추적**: 시나리오가 탐지를 안 하면 거꾸로 따라가 입력 수집기의 끊김·지연을 바로 표시.
+- **고아 객체 찾기**: 아무 데서도 안 쓰는 테이블·데이터셋·예약 쿼리 목록.
+- 모든 sys.* 뷰의 `dep_*` 컬럼은 이 표를 요약한 값이다.
 
 ## 3. 자동 등록 기본 대시보드 — 수집기
 수집기를 만들면 자동으로 아래에 나타나고, 삭제하면 사라진다.
