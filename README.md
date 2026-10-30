@@ -1,4 +1,6 @@
-# SIEM
+# MAZKION
+
+> **MAZKION(마즈키온)** — 성경 속 왕의 사관 *마즈키르*(מַזְכִּיר, 삼하 8:16) + *자카르*(זָכַר, 기억하다) + *-ion*(빛보다 빠른 입자). "모든 일을 빠짐없이, 가장 빠르게 기록하고 결코 잊지 않는 자." / *The one who records everything, fastest, and never forgets.* — [ORIGIN.md](ORIGIN.md)
 
 High-performance open-source SIEM in C — agents, forwarders, analysis servers with HA, detection rules, case management and web UI.
 
