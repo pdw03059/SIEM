@@ -147,6 +147,9 @@
 | sys.agents | 호스트명, 버전, OS, 마지막 접속, **중복 ID 감지**(같은 ID로 여러 호스트가 접속하면 경고), 업그레이드 필요 여부 |
 | sys.forwarders | 버퍼 사용률, 가장 오래된 대기 로그 나이, 전달 대상, 채널별 처리량, 재전송 |
 | sys.tables | 일평균 수집량, 파티션 수, 미래 날짜 파티션 여부, 쓰기 대기열, **현재 잠금 보유자·대기자**, 보존 기간, 압축률 |
+| sys.tables(저장 정책) | encryption(on/off)·key_id·key_rotated_at, compression_algo·level·ratio·cpu_pct, lifecycle_tier(hot/warm/cold/archive)·next_move_at, legal_hold, hash_chain_ok·last_verified_at, last_backup_at·backup_ok |
+| sys.backups | 대상(테이블·노드·메타데이터), 종류(전체·증분), 시작·종료·소요, 크기, 저장 위치, 해시 검증 결과, 마지막 복원 시험 결과, 다음 예정, 백업 디스크 잔량·가득 찰 예상일 |
+| sys.errors | 오류 코드, 심각도, 사람 말 요약, 영향, 원인 후보, 조치, 관련 객체 id·이름, 노드, 추적 ID, 처음·마지막 발생, 반복 횟수, 해결 여부, 기술 상세 |
 | sys.locks | 잠금 종류, 보유 작업, 보유 시간, 대기 작업 목록(현장 장애의 원인 추적) |
 | sys.queries | 실행 중 쿼리, 사용자, 시작 시각, 읽은 건수, 메모리, 취소 가능 여부 |
 | sys.parsers | 사용 중 수집기 수, 성공률, 느린 정규식 경고 |
