@@ -34,8 +34,9 @@ GitHub 의견 마지막 확인: 2026-10-30T12:00+09:00
 1. `docs/ARCHITECTURE.md`: 구성 요소·데이터 흐름·저장 포맷 (FEATURES.md의 A·B단계 필수 기능 기준). **PLAN.md 9장·docs/SYSTEM_VIEWS.md 필수 반영**: 객체별 통합 시스템 뷰(sys.*) 스키마, 객체 생성 시 대시보드 자동 등록 구조, 외부 DB 없음(SQLite 내장)
 2. `docs/QUERY_LANGUAGE.md`: 쿼리 언어 설계 — 기준 제품 명령어(FEATURES.md 6장)·Splunk SPL·SQL 공개 문서 비교표, 파이프+SQL 문법, 명령어 메타데이터 형식(매뉴얼 자동 생성용). PLAN.md 7장 참고
 3. `include/`: 모듈 간 인터페이스 헤더
-4. `docs/CODING_RULES.md`: 코딩·주석 규칙
+4. `docs/CODING_RULES.md`: 코딩·주석 규칙 + CLAUDE.md '고치기 쉬운 코드' 원칙의 구체 예시(디렉터리 구조, 등록 표 패턴, 인터페이스 예, 오류 코드 정의 방식)
 5. `docs/BENCHMARK_PLAN.md`: 성능 목표와 측정 방법
 6. `CONTRIBUTING.md` + CLA 초안(첫 외부 PR 전 필수, 상용 라이선스 병행 대비). 채택 전 PR에 "주인님 확인 필요"로 남길 것
 7. FEATURES.md 보완: REST API 엔드포인트, 위험 점수 산식 등 "확인 못한 영역"(기준 제품 공개 문서만 — 주소는 예약 작업 지시문에 있음, 문장 복사 금지)
 8. 제품 웹사이트 W1: `site/` 정적 사이트 뼈대(TypeScript, GitHub Pages). 제품 이름 **MAZKION(마즈키온)** — 설정 파일 한 곳(`site/brand.json`)에 두고, 첫 페이지 맨 위에 ORIGIN.md의 유래를 표시. 페이지: 소개, 기능 목록(FEATURES.md에서 자동 생성·검색, 기준 제품명 노출 금지), 쿼리 매뉴얼 자리, 설치 안내, 대기자 명단(외부 서비스 없이 GitHub 이슈 양식 링크). PLAN.md 7·8장 참고
+9. `docs/TEST_SERVER.md`: 발주자 데스크톱 테스트 서버 준비 가이드(복사·붙여넣기 명령) — GitHub 자체 호스팅 실행기 설치, **외부 PR 실행 차단 설정**, 합성 로그 생성기, FIELD_NOTES L01~L15 장애 재현 시험 목록, 매일 성능 기록. GitHub 제공 실행기용 기본 CI(빌드·경고 0·테스트·퍼징)도 함께
