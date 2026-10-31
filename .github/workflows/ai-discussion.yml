@@ -27,6 +27,9 @@ concurrency:
 
 jobs:
   ai-review:
+    # 비용 방지: 유료 AI 리뷰는 수동 실행 또는 "초안이 아니고 night/ 브랜치가 아닌" PR에서만 실행한다.
+    # 밤 작업은 night/* 초안 PR에 30분마다 push하므로, 이 조건이 없으면 push마다 유료 API가 호출된다.
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.draft == false && !startsWith(github.head_ref, 'night/'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
