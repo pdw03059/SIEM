@@ -20,6 +20,9 @@ Node 20 이상이 필요하고, 외부 패키지는 쓰지 않습니다.
 | `harness/run-scenario.mjs` | 대상 스크립트(신규 또는 원본)를 자식 프로세스로 실행하고 요청 기록을 정리합니다. 부모 프로세스의 환경 변수는 넘기지 않습니다. 네트워크 격리 공간 안에서 실행하는 옵션이 있습니다 |
 | `harness/net-probe.mjs` | 대표 통신 경로 10가지로 실제 연결을 시도해 결과를 출력합니다 |
 | `harness/net-boundary.mjs` | 통신 코드 위치 검사기(글자 검사) |
+| `harness/local-probe.mjs` | 격리 안 권한 상태(/proc/self/status, id map)와 지정된 서비스 소켓 6개의 접근 가능성(파일 권한 기준, 접속 안 함). 소켓 검사는 GitHub 제공 실행기에서만 |
+| `harness/socket-allowlist.json` | 소켓 허용 목록(기본 비어 있음, 항목마다 사유·근거 필수, Docker·D-Bus·resolved 금지) |
+| `isolation-failure.test.mjs` | 실패 상황 시험: 격리 도구 실패 → 판정 불가, 격리 없음 → 격리 시험 실패, `MZK_REQUIRE_ISOLATION=1`이면 판정 불가 → 실패 |
 | `harness/isolate.mjs` | 격리 방법 선택: `unshare -rn`(관리자 권한 없음)을 먼저, 안 되면 `sudo -n unshare -n` + `setpriv`(관리자 권한은 격리 공간 생성에만, 시험은 원래 사용자로). `MZK_ISOLATION=auto/userns/sudo`로 지정 가능 |
 | `legacy/ai-discussion.v0.mjs` | **모듈 분리 전 원본을 글자 하나 바꾸지 않고 보존한 파일.** 회귀 시험의 기준점이며, 절대 수정하지 않습니다 |
 | `golden/*.json` | 시나리오별 정답(1단계에서 원본으로 생성): 종료 코드, 출력, 호출 순서, 요청 내용 |
