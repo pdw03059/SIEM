@@ -194,7 +194,12 @@ async function callOpenAI(prompt, maxTokens) {
   ).trim();
 
   if (!text || data.status !== "completed") {
-    throw new Error("OpenAI response was incomplete.");
+    const details = [
+      `status=${data.status || "unknown"}`,
+      `incomplete_reason=${data.incomplete_details?.reason || "none"}`,
+      `output_tokens=${data.usage?.output_tokens ?? "unknown"}`
+    ].join(", ");
+    throw new Error(`OpenAI response was incomplete (${details}). No automatic retry was attempted.`);
   }
 
   return {
@@ -917,7 +922,66 @@ ${round}
   return { text: answer, usage: data.usage || {} };
 }
 
+// Issue 토론 비용 방어: 작성자 권한, 명시적 명령, 중복 방지, 일일·월간 실행 한도.
+async function reserveIssueDiscussionRun() {
+  const [owner] = GITHUB_REPOSITORY.split("/");
+  const payload = JSON.parse(await readFile(GITHUB_EVENT_PATH, "utf8"));
+  const comment = payload.comment;
+  const command = String(comment?.body || "").trim();
+
+  if (GITHUB_ACTOR !== owner || comment?.user?.login !== owner) {
+    console.log("Blocked: only the repository owner may start an AI discussion.");
+    return false;
+  }
+  if (!/^\/ai-review(?:\\s|$)/i.test(command)) {
+    console.log("Blocked: add /ai-review at the beginning of the Issue comment.");
+    return false;
+  }
+
+  const now = new Date();
+  const dayKey = now.toISOString().slice(0, 10);
+  const monthKey = dayKey.slice(0, 7);
+  const markerPrefix = "<!-- MAZKION_AI_RESERVATION:";
+  const comments = await githubRequest(
+    `/issues/${ISSUE_NUMBER}/comments?per_page=100&sort=created&direction=desc`
+  );
+  const reservations = (Array.isArray(comments) ? comments : [])
+    .filter(item => String(item.body || "").includes(markerPrefix));
+
+  // 같은 GitHub 댓글의 재실행은 API를 호출하기 전에 차단한다.
+  const duplicate = reservations.some(item =>
+    String(item.body || "").includes(`comment=${ISSUE_COMMENT_ID}`)
+  );
+  if (duplicate) {
+    console.log("Blocked: this comment already reserved an AI discussion run.");
+    return false;
+  }
+
+  const daily = reservations.filter(item =>
+    String(item.body || "").includes(`day=${dayKey}`)
+  ).length;
+  const monthly = reservations.filter(item =>
+    String(item.body || "").includes(`month=${monthKey}`)
+  ).length;
+
+  const MAX_DAILY_RUNS = 3;
+  const MAX_MONTHLY_RUNS = 30;
+  if (daily >= MAX_DAILY_RUNS || monthly >= MAX_MONTHLY_RUNS) {
+    await postIssueComment(
+      `⛔ AI 토론 실행 한도에 도달했습니다. 일일 한도: ${MAX_DAILY_RUNS}회, 월간 한도: ${MAX_MONTHLY_RUNS}회. 한도는 KST가 아닌 UTC 기준 날짜로 계산됩니다. 비용 보호를 위해 이번 실행은 시작하지 않았습니다.`
+    );
+    return false;
+  }
+
+  // 모델 호출 전에 예약 댓글을 기록한다. 이후 API 오류가 나도 재시도로 무제한 과금되지 않는다.
+  await postIssueComment(
+    `${markerPrefix} day=${dayKey} month=${monthKey} comment=${ISSUE_COMMENT_ID} run=${GITHUB_RUN_ID} -->\n🔒 AI 토론 실행 예약됨 (${daily + 1}/${MAX_DAILY_RUNS} daily, ${monthly + 1}/${MAX_MONTHLY_RUNS} monthly). 실패해도 자동 환불/재시도하지 않습니다.`
+  );
+  return true;
+}
+
 async function runIssueCollaboration() {
+  if (!(await reserveIssueDiscussionRun())) return;
   const context = await loadIssueDiscussion();
   if (!context) return;
   const issueContext = buildIssueContext(context);
