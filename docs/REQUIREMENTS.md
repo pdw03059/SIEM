@@ -13,7 +13,7 @@
 | 5 | 접속 프로파일, 행위 프로파일 | PLAN 6장 | A·B·F |
 | 6 | 모든 수집 모델: Syslog·파일·SFTP/FTP·DB·Windows 이벤트·SNMP·Flow·API·Kafka 등 | PLAN 6장 | A~D |
 | 7 | 스트림 쿼리 | PLAN 6장 | B |
-| 8 | 성능 우위: 단일 서버 30만 EPS, 100GB/일 키워드 검색 수 초, 테이블 장애 격리 | PLAN 5장, DECISIONS | A·B |
+| 8 | 성능 우위(2026-10-31 변경, PLAN.md 5장 우선): ~~단일 서버 30만 EPS~~, 100GB/일 키워드 검색 수 초, 테이블 장애 격리 | PLAN 5장, DECISIONS | A·B |
 | 9 | 외부 DB(MariaDB) 없이 동작 | DECISIONS | A |
 
 ## 2. 쿼리·매뉴얼·웹사이트
