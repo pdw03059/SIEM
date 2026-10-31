@@ -946,9 +946,9 @@ async function reserveAiRun() {
     }
     triggerKey = `comment=${ISSUE_COMMENT_ID}`;
     const normalizedTopic = String(comment.body || "")
-      .replace(/^\\/ai-review(?:\\s|$)/i, "")
+      .replace(/^\/ai-review(?:\s|$)/i, "")
       .toLowerCase()
-      .replace(/\\s+/g, " ")
+      .replace(/\s+/g, " ")
       .trim();
     topicKey = createHash("sha256").update(normalizedTopic).digest("hex").slice(0, 16);
   } else if (EVENT_NAME === "workflow_dispatch") {
