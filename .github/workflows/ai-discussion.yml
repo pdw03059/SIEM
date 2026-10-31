@@ -1,9 +1,6 @@
 name: MAZKION AI Collaboration
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-
   # 사람이 Issue #1에 새 댓글을 남기면 양방향 AI 토론을 실행한다.
   issue_comment:
     types: [created]
@@ -39,10 +36,6 @@ jobs:
        !github.event.issue.pull_request &&
        github.event.comment.user.type != 'Bot' &&
        github.event.comment.user.login != 'github-actions[bot]')
-      ||
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.draft == false &&
-       !startsWith(github.head_ref, 'night/'))
       ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
