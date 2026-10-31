@@ -938,7 +938,7 @@ async function reserveAiRun() {
       console.log("Blocked: only the repository owner may start an Issue discussion.");
       return false;
     }
-    if (!/^\/ai-review(?:\\s|$)/i.test(String(comment.body || "").trim())) {
+    if (!/^\/ai-review(?:\s|$)/i.test(String(comment.body || "").trim())) {
       console.log("Blocked: add /ai-review at the beginning of the Issue comment.");
       return false;
     }
