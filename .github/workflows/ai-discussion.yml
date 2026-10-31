@@ -1,223 +1,48 @@
-
-name: MAZKION API Connection Test
+name: MAZKION AI Code Review
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
   workflow_dispatch:
     inputs:
+      pr_number:
+        description: "검토할 GitHub PR 번호"
+        required: true
+        type: string
       issue_number:
-        description: "테스트 결과를 남길 GitHub Issue 번호"
+        description: "종합 보고서를 남길 Issue 번호"
         required: true
         default: "1"
+        type: string
 
 permissions:
+  contents: read
+  pull-requests: read
   issues: write
 
+concurrency:
+  group: maz kion-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
 jobs:
-  api-test:
+  ai-review:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
 
     steps:
-      - name: Test Claude and OpenAI APIs
+      - name: Checkout trusted workflow files
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Run MAZKION AI Review
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          ISSUE_NUMBER: ${{ inputs.issue_number || '1' }}
 
-        run: |
-          node <<'NODE'
-          async function main() {
-            const results = [];
-
-            const repo = process.env.GITHUB_REPOSITORY;
-            const issueNumber = process.env.ISSUE_NUMBER;
-
-            if (!process.env.ANTHROPIC_API_KEY) {
-              throw new Error("ANTHROPIC_API_KEY secret is missing.");
-            }
-
-            if (!process.env.OPENAI_API_KEY) {
-              throw new Error("OPENAI_API_KEY secret is missing.");
-            }
-
-            if (!process.env.GITHUB_TOKEN) {
-              throw new Error("GITHUB_TOKEN is missing.");
-            }
-
-            if (!/^\d+$/.test(issueNumber)) {
-              throw new Error("Invalid Issue number.");
-            }
-
-            // 1. Claude API test
-            console.log("Testing Claude API...");
-
-            const claudeResponse = await fetch(
-              "https://api.anthropic.com/v1/messages",
-              {
-                method: "POST",
-                headers: {
-                  "x-api-key": process.env.ANTHROPIC_API_KEY,
-                  "anthropic-version": "2023-06-01",
-                  "content-type": "application/json"
-                },
-                body: JSON.stringify({
-                  model: "claude-sonnet-5",
-                  max_tokens: 128,
-                  output_config: {
-                    effort: "low"
-                  },
-                  messages: [
-                    {
-                      role: "user",
-                      content: "Reply with exactly: CLAUDE_API_OK"
-                    }
-                  ]
-                })
-              }
-            );
-
-            const claudeData = await claudeResponse.json();
-
-            if (!claudeResponse.ok) {
-              throw new Error(
-                `Claude API failed: HTTP ${claudeResponse.status} - ` +
-                `${claudeData.error?.message || "Unknown error"}`
-              );
-            }
-
-            const claudeText = (claudeData.content || [])
-              .filter(item => item.type === "text")
-              .map(item => item.text)
-              .join("")
-              .trim();
-
-            const claudeUsage = claudeData.usage || {};
-
-            console.log("Claude diagnostics:", JSON.stringify({
-              model: claudeData.model,
-              stop_reason: claudeData.stop_reason,
-              input_tokens: claudeUsage.input_tokens,
-              output_tokens: claudeUsage.output_tokens
-            }));
-
-            if (!claudeText || claudeData.stop_reason !== "end_turn") {
-              throw new Error("Claude returned an incomplete response.");
-            }
-
-            results.push({
-              name: "Claude",
-              model: claudeData.model,
-              status: "SUCCESS",
-              response: claudeText,
-              input_tokens: claudeUsage.input_tokens,
-              output_tokens: claudeUsage.output_tokens
-            });
-
-            // 2. OpenAI API test
-            console.log("Testing OpenAI API...");
-
-            const openaiResponse = await fetch(
-              "https://api.openai.com/v1/responses",
-              {
-                method: "POST",
-                headers: {
-                  "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                  model: "gpt-6-luna",
-                  input: "Reply with exactly: OPENAI_API_OK",
-                  max_output_tokens: 64
-                })
-              }
-            );
-
-            const openaiData = await openaiResponse.json();
-
-            if (!openaiResponse.ok) {
-              throw new Error(
-                `OpenAI API failed: HTTP ${openaiResponse.status} - ` +
-                `${openaiData.error?.message || "Unknown error"}`
-              );
-            }
-
-            const openaiText = (
-              openaiData.output_text ||
-              (openaiData.output || [])
-                .flatMap(item => item.content || [])
-                .filter(item => item.type === "output_text")
-                .map(item => item.text)
-                .join("")
-            ).trim();
-
-            const openaiUsage = openaiData.usage || {};
-
-            console.log("OpenAI diagnostics:", JSON.stringify({
-              model: openaiData.model,
-              status: openaiData.status,
-              input_tokens: openaiUsage.input_tokens,
-              output_tokens: openaiUsage.output_tokens
-            }));
-
-            if (!openaiText || openaiData.status !== "completed") {
-              throw new Error("OpenAI returned an incomplete response.");
-            }
-
-            results.push({
-              name: "OpenAI",
-              model: openaiData.model,
-              status: "SUCCESS",
-              response: openaiText,
-              input_tokens: openaiUsage.input_tokens,
-              output_tokens: openaiUsage.output_tokens
-            });
-
-            // 3. Publish one result comment
-            const report = [
-              "## MAZKION API 연결 테스트 결과",
-              "",
-              "| API | 모델 | 결과 | 입력 토큰 | 출력 토큰 |",
-              "|---|---|---|---:|---:|",
-              ...results.map(r =>
-                `| ${r.name} | ${r.model} | ${r.status} | ` +
-                `${r.input_tokens ?? "N/A"} | ${r.output_tokens ?? "N/A"} |`
-              ),
-              "",
-              ...results.map(r =>
-                `- ${r.name} 응답: \`${r.response}\``
-              ),
-              "",
-              "두 API의 연결 테스트가 모두 완료되었습니다."
-            ].join("\n");
-
-            const githubResponse = await fetch(
-              `https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`,
-              {
-                method: "POST",
-                headers: {
-                  "Authorization": `Bearer ${process.env.GITHUB_TOKEN}`,
-                  "Accept": "application/vnd.github+json",
-                  "X-GitHub-Api-Version": "2022-11-28",
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ body: report })
-              }
-            );
-
-            if (!githubResponse.ok) {
-              throw new Error(
-                `GitHub comment failed: HTTP ${githubResponse.status}`
-              );
-            }
-
-            console.log("Both API tests completed successfully.");
-            console.log("Result comment published.");
-          }
-
-          main().catch(error => {
-            console.error("API TEST FAILED:", error.message);
-            process.exit(1);
-          });
-          
+        run: node .github/scripts/ai-discussion.mjs
