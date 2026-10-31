@@ -17,7 +17,8 @@ import { fileURLToPath } from "node:url";
 
 /* ---- 1. 경로 계산: 이 파일 기준으로 대상 스크립트와 mock 위치를 찾는다 ---- */
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const TARGET = path.resolve(here, "../../ai-discussion.mjs");
+export const TARGET = path.resolve(here, "../../ai-discussion.mjs"); // 모듈 분리 후 진입 파일(신규)
+export const LEGACY = path.resolve(here, "../legacy/ai-discussion.v0.mjs"); // 모듈 분리 전 원본 보존본(기준점)
 const MOCK = path.resolve(here, "mock-env.mjs");
 
 /* ---- 2. 요청 기록 한 건을 읽기 좋게 정리 ---- */
@@ -35,7 +36,9 @@ function normalizeEntry(e) {
 }
 
 /* ---- 3. 시나리오 실행 ---- */
-export function runScenario(scenario) {
+// target: 실행할 스크립트(신규 또는 원본)
+// isolate: true면 네트워크가 없는 격리 공간(unshare -rn) 안에서 실행 — 시험 자체가 네트워크 없이 도는지 확인용
+export function runScenario(scenario, target = TARGET, { isolate = false } = {}) {
   // 시나리오와 기록 파일은 운영체제 임시 폴더 안의 새 폴더에 둔다(저장소를 더럽히지 않음)
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `mzk-${scenario.name}-`));
   const scenarioFile = path.join(dir, "scenario.json");
@@ -51,7 +54,9 @@ export function runScenario(scenario) {
     ...scenario.env
   };
 
-  const child = spawnSync(process.execPath, ["--import", MOCK, TARGET], {
+  const nodeArgs = [process.execPath, "--import", MOCK, target];
+  const [cmd, ...args] = isolate ? ["unshare", "-rn", ...nodeArgs] : nodeArgs;
+  const child = spawnSync(cmd, args, {
     env,
     encoding: "utf8",
     timeout: 20000

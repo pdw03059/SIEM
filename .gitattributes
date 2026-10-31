@@ -1,0 +1,4 @@
+# 줄바꿈 고정: Windows에서 받아도 LF를 유지한다.
+# 회귀 시험은 원본 보존본의 SHA-256과 정답 파일을 글자 단위로 비교하므로, CRLF로 바뀌면 시험이 깨진다.
+.github/scripts/** text eol=lf
+.github/workflows/** text eol=lf

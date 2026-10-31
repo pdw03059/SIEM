@@ -5,9 +5,13 @@
  * 실행: node --test .github/scripts/test/
  * 정답 갱신(의도적으로 동작을 바꿨을 때만): UPDATE_GOLDEN=1 node --test .github/scripts/test/
  *
- * 시험 세 겹:
- *   (가) 대상 파일 무결성: 기존 스크립트의 SHA-256이 기록된 값과 같은지(1단계는 수정 금지 확인)
+ * 시험 네 겹:
+ *   (가) 원본 보존본 무결성: test/legacy/ai-discussion.v0.mjs의 SHA-256이 1단계에서 기록한
+ *        원본 해시(golden/TARGET_SHA256)와 같은지. 2단계부터 진입 파일은 바뀌므로 보존본을 확인한다.
  *   (나) 정답 비교: 시나리오별 종료 코드·호출 순서·요청 내용이 golden/*.json과 같은지
+ *        - 원본 보존본 결과 = 정답 파일 → 정답 파일이 몰래 고쳐지지 않았음을 확인
+ *        - 신규 코드 결과 = 정답 파일, 그리고 신규 = 원본(글자 단위) → 모듈 분리 후 동작 동일
+ *        시각(KST 19:00:00)·실행 번호(12345)는 두 실행 모두 같은 값으로 고정하므로 지우지 않고 비교한다.
  *   (다) 핵심 성질 확인: 정답 파일과 별개로 "무엇이 일어나야/일어나면 안 되는지"를 직접 단언
  *        → 정답 파일을 잘못 갱신해도 핵심 성질이 깨지면 실패한다.
  */
@@ -18,30 +22,33 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { SCENARIOS } from "./harness/scenarios.mjs";
-import { runScenario, TARGET } from "./harness/run-scenario.mjs";
+import { runScenario, LEGACY } from "./harness/run-scenario.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const GOLDEN_DIR = path.join(here, "golden");
 const UPDATE = process.env.UPDATE_GOLDEN === "1";
 
 /* ---- 공통 도우미 ---- */
-const results = new Map(); // 시나리오 이름 → 실행 결과(같은 시나리오를 두 번 돌리지 않기 위해)
-function result(name) {
-  if (!results.has(name)) {
+const results = new Map(); // "대상:시나리오 이름" → 실행 결과(같은 실행을 두 번 하지 않기 위해)
+function run(name, target) {
+  const key = `${target ?? "new"}:${name}`;
+  if (!results.has(key)) {
     const s = SCENARIOS.find(x => x.name === name);
-    results.set(name, runScenario(s));
+    results.set(key, target ? runScenario(s, target) : runScenario(s));
   }
-  return results.get(name);
+  return results.get(key);
 }
+const result = name => run(name); // 신규 코드 결과(핵심 성질 시험이 쓰는 기본값)
+const legacyResult = name => run(name, LEGACY); // 원본 보존본 결과
 const calls = r => r.requests.map(q => `${q.method} ${q.matched}`); // 호출 순서 요약
 const llmCalls = r => r.requests.filter(q => /openai|anthropic/.test(q.url));
 const writes = r => r.requests.filter(q => q.method !== "GET" && !/openai|anthropic/.test(q.url));
 
 /* ---- (가) 대상 파일 무결성 ---- */
-test("대상 스크립트가 바뀌지 않았다 (1단계 수정 금지)", () => {
+test("원본 보존본이 1단계 원본과 글자 단위로 같다 (SHA-256)", () => {
   const expected = fs.readFileSync(path.join(GOLDEN_DIR, "TARGET_SHA256"), "utf8").trim();
-  const actual = crypto.createHash("sha256").update(fs.readFileSync(TARGET)).digest("hex");
-  assert.equal(actual, expected, "ai-discussion.mjs가 바뀌었습니다. 의도한 변경이면 정답 파일을 함께 갱신하세요.");
+  const actual = crypto.createHash("sha256").update(fs.readFileSync(LEGACY)).digest("hex");
+  assert.equal(actual, expected, "test/legacy/ai-discussion.v0.mjs가 바뀌었습니다. 보존본은 절대 수정하지 않습니다.");
 });
 
 /* ---- (나) 정답 파일 비교: 시나리오마다 하나 ---- */
@@ -54,6 +61,17 @@ for (const s of SCENARIOS) {
       fs.writeFileSync(file, JSON.stringify(snapshot, null, 2) + "\n");
     }
     assert.deepEqual(snapshot, JSON.parse(fs.readFileSync(file, "utf8")));
+  });
+
+  test(`원본 보존본 = 정답: ${s.name}`, () => {
+    const file = path.join(GOLDEN_DIR, `${s.name}.json`);
+    const snapshot = { description: s.description, ...legacyResult(s.name) };
+    assert.deepEqual(snapshot, JSON.parse(fs.readFileSync(file, "utf8")), "정답 파일이 원본 결과와 다릅니다(정답 파일 변조 의심).");
+  });
+
+  test(`신규 = 원본(글자 단위): ${s.name}`, () => {
+    // JSON 문자열로 바꿔 비교: 요청 본문·보고서·출력 줄이 한 글자라도 다르면 실패
+    assert.equal(JSON.stringify(result(s.name)), JSON.stringify(legacyResult(s.name)));
   });
 }
 
