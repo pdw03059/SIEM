@@ -2,7 +2,8 @@
 /*
  * network-isolation.test.mjs — 운영체제 수준 네트워크 격리 시험 (2단계)
  *
- * 무엇: unshare -rn(새 사용자·네트워크 공간)으로 만든 격리 공간 안팎에서 같은 연결 시도를 한다.
+ * 무엇: 네트워크 격리 공간(harness/isolate.mjs가 고른 방법: unshare -rn 또는 sudo unshare -n + setpriv) 안팎에서
+ *       같은 연결 시도를 한다.
  *   - 대조: 격리 밖에서는 각 경로가 연결돼야 한다. 연결되지 않으면 그 경로는 "판정 불가"(건너뜀, 통과 아님).
  *   - 차단: 격리 안에서는 모든 경로가 실패해야 한다. 하나라도 연결되면 실패.
  *   - 격리 확인: 격리 안의 네트워크 장치가 lo(자기 자신)뿐인지.
@@ -10,7 +11,8 @@
  *     "네트워크 없음"으로 실패했는지 기록에서 확인(시도조차 안 한 실패와 구분).
  *   - 시험 장치 오프라인 확인: 회귀 시나리오(정상 흐름)를 격리 안에서 돌려도 정답과 같은지.
  * 한계: 대표 경로 10가지를 확인하는 시험이며, 가능한 모든 통신 방법을 증명하지는 않는다.
- *   GitHub Actions 실행기에서 unshare가 되는지는 2-1단계에서 따로 확인한다.
+ *   GitHub Actions 실행기(Ubuntu 24.04)는 AppArmor 설정으로 unshare -rn을 막으므로 CI는 sudo 방법을 쓴다(보안 설정은 바꾸지 않음).
+ *   격리 공간을 만들지 못하면 모든 격리 시험은 "판정 불가"(건너뜀)이며 통과로 세지 않는다.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -23,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { PROBE_NAMES, classify } from "./harness/net-probe.mjs";
 import { SCENARIOS } from "./harness/scenarios.mjs";
 import { runScenario } from "./harness/run-scenario.mjs";
+import { chooseIsolation } from "./harness/isolate.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PROBE = path.join(here, "harness", "net-probe.mjs");
@@ -31,7 +34,7 @@ const INCONCLUSIVE = "판정 불가";
 /* ---- 도우미: 탐침 실행(격리 여부 선택) ---- */
 function probe(isolate, names = []) {
   const base = [process.execPath, PROBE, ...names];
-  const [cmd, ...args] = isolate ? ["unshare", "-rn", ...base] : base;
+  const [cmd, ...args] = isolate ? [...iso.prefix, ...base] : base;
   const r = spawnSync(cmd, args, { encoding: "utf8", timeout: 60000 });
   if (r.error || r.status !== 0) return { error: r.error?.code || r.stderr || `exit ${r.status}` };
   return JSON.parse(r.stdout);
@@ -102,13 +105,24 @@ test("판정 기준 실측: 인증서 오류=닿음, 연결 거부·로컬 설�
   }
 });
 
-// unshare를 쓸 수 있는지 먼저 확인(못 쓰면 이 파일의 시험은 전부 판정 불가)
-const canIsolate = spawnSync("unshare", ["-rn", "true"]).status === 0;
+// 격리 방법 고르기(못 고르면 이 파일의 격리 시험은 전부 판정 불가)
+const iso = chooseIsolation();
+const canIsolate = iso.method !== null;
+const NO_ISO = `${INCONCLUSIVE}: 격리 공간을 만들 수 없음(${iso.reason})`;
+
 const outside = probe(false);
 const inside = canIsolate ? probe(true) : null;
 
+test("격리 방법 기록 + 격리 안 시험 프로그램은 관리자 권한이 아니다", t => {
+  if (!canIsolate) return t.skip(NO_ISO);
+  t.diagnostic(`격리 방법: ${iso.method} (${iso.prefix.join(" ")})`);
+  assert.ok(!inside.error, `격리 탐침 실행 실패: ${inside.error}`);
+  // 격리 안 탐침의 사용자 번호가 시험을 시작한 사용자와 같아야 한다(sudo 방법이면 setpriv로 되돌아왔는지 확인)
+  assert.equal(inside.uid, process.getuid(), "격리 안 시험 프로그램의 사용자가 바뀜(권한 상승 의심)");
+});
+
 test("격리 공간 안의 네트워크 장치는 lo뿐이다", t => {
-  if (!canIsolate) return t.skip(`${INCONCLUSIVE}: unshare -rn 사용 불가`);
+  if (!canIsolate) return t.skip(NO_ISO);
   assert.ok(!inside.error, `격리 탐침 실행 실패: ${inside.error}`);
   assert.deepEqual(inside.interfaces, ["lo"]);
   assert.ok(outside.interfaces.some(i => i !== "lo"), "격리 밖에도 lo뿐이면 대조가 성립하지 않음");
@@ -116,7 +130,7 @@ test("격리 공간 안의 네트워크 장치는 lo뿐이다", t => {
 
 for (const name of PROBE_NAMES) {
   test(`경로 ${name}: 격리 밖 연결됨(대조) / 격리 안 차단`, t => {
-    if (!canIsolate) return t.skip(`${INCONCLUSIVE}: unshare -rn 사용 불가`);
+    if (!canIsolate) return t.skip(NO_ISO);
     const o = outside.results[name];
     if (!o.ok) return t.skip(`${INCONCLUSIVE}: 격리 밖에서도 연결 안 됨(${o.code})`);
     const i = inside.results[name];
@@ -126,10 +140,11 @@ for (const name of PROBE_NAMES) {
 }
 
 test("DNS: 격리 안 이름 조회가 이름 서버 연결을 실제로 시도했다가 '네트워크 없음'으로 실패", t => {
-  if (!canIsolate) return t.skip(`${INCONCLUSIVE}: unshare -rn 사용 불가`);
+  if (!canIsolate) return t.skip(NO_ISO);
   const hasStrace = spawnSync("strace", ["-V"]).status === 0;
   if (!hasStrace) return t.skip(`${INCONCLUSIVE}: strace 없음`);
-  const r = spawnSync("unshare", ["-rn", "strace", "-f", "-e", "trace=connect,sendto,sendmmsg",
+  const [icmd, ...iargs] = iso.prefix;
+  const r = spawnSync(icmd, [...iargs, "strace", "-f", "-e", "trace=connect,sendto,sendmmsg",
     process.execPath, PROBE, "dns-lookup", "dns-resolve"], { encoding: "utf8", timeout: 60000 });
   if (r.status !== 0) return t.skip(`${INCONCLUSIVE}: strace 실행 실패(${r.stderr.split("\n")[0]})`);
   const lines = r.stderr.split("\n").filter(l => /htons\(53\)/.test(l));
@@ -142,9 +157,9 @@ test("DNS: 격리 안 이름 조회가 이름 서버 연결을 실제로 시도�
 });
 
 test("시험 장치는 네트워크 없이 돈다: 정상 시나리오를 격리 안에서 실행해도 정답과 같다", t => {
-  if (!canIsolate) return t.skip(`${INCONCLUSIVE}: unshare -rn 사용 불가`);
+  if (!canIsolate) return t.skip(NO_ISO);
   const s = SCENARIOS.find(x => x.name === "01-normal");
   const golden = JSON.parse(fs.readFileSync(path.join(here, "golden", "01-normal.json"), "utf8"));
-  const r = runScenario(s, undefined, { isolate: true });
+  const r = runScenario(s, undefined, { isolate: iso.prefix });
   assert.deepEqual({ description: s.description, ...r }, golden);
 });

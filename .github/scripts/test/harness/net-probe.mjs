@@ -90,7 +90,7 @@ function interfaces() {
 /* ---- 4. 실행: 이 파일을 직접 실행했을 때만 동작(시험 코드가 불러올 때는 실행 안 함) ---- */
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop())) {
   const names = process.argv.slice(2).length ? process.argv.slice(2) : PROBE_NAMES;
-  const out = { interfaces: interfaces(), results: {} };
+  const out = { uid: process.getuid?.() ?? null, interfaces: interfaces(), results: {} }; // uid: 격리 안에서 관리자 권한으로 돌지 않는지 확인용
   for (const n of names) out.results[n] = await attempt(PROBES[n]);
   process.stdout.write(JSON.stringify(out));
   process.exit(0); // 열린 연결이 남아 있어도 바로 끝낸다

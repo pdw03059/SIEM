@@ -37,8 +37,8 @@ function normalizeEntry(e) {
 
 /* ---- 3. 시나리오 실행 ---- */
 // target: 실행할 스크립트(신규 또는 원본)
-// isolate: true면 네트워크가 없는 격리 공간(unshare -rn) 안에서 실행 — 시험 자체가 네트워크 없이 도는지 확인용
-export function runScenario(scenario, target = TARGET, { isolate = false } = {}) {
+// isolate: 격리 명령 앞부분(isolate.mjs의 prefix). 주면 네트워크가 없는 격리 공간 안에서 실행 — 시험 자체가 네트워크 없이 도는지 확인용
+export function runScenario(scenario, target = TARGET, { isolate = null } = {}) {
   // 시나리오와 기록 파일은 운영체제 임시 폴더 안의 새 폴더에 둔다(저장소를 더럽히지 않음)
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `mzk-${scenario.name}-`));
   const scenarioFile = path.join(dir, "scenario.json");
@@ -55,7 +55,10 @@ export function runScenario(scenario, target = TARGET, { isolate = false } = {})
   };
 
   const nodeArgs = [process.execPath, "--import", MOCK, target];
-  const [cmd, ...args] = isolate ? ["unshare", "-rn", ...nodeArgs] : nodeArgs;
+  // 격리 실행 시: sudo는 환경 변수를 지우므로, env -i로 위 env를 그대로 다시 넣는다(두 방법 모두 같은 환경이 되게).
+  // 값이 명령줄 인자로 보이지만, 시험용 가짜 값뿐이다.
+  const envArgs = Object.entries(env).map(([k, v]) => `${k}=${v}`);
+  const [cmd, ...args] = isolate ? [...isolate, "env", "-i", ...envArgs, ...nodeArgs] : nodeArgs;
   const child = spawnSync(cmd, args, {
     env,
     encoding: "utf8",
