@@ -1,0 +1,57 @@
+# MAZKION(마즈키온) — 일일 기술 학습 교재 (설명: .github/scripts/DAILY_LEARNING.md)
+name: MAZKION Daily Learning
+
+on:
+  schedule:
+    # 매일 08:10 KST(= 전날 23:10 UTC). 전날 밤 night/YYYY-MM-DD 브랜치를 대상으로 한다.
+    - cron: "10 23 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "대상 날짜 YYYY-MM-DD (비우면 한국 시간 어제)"
+        required: false
+        type: string
+      force:
+        description: "같은 날짜 교재가 있어도 다시 만들기"
+        required: false
+        default: false
+        type: boolean
+
+# 필요한 권한만: reports 브랜치에 교재 저장(contents), PR 찾기(pull-requests 읽기), PR에 링크 댓글(issues)
+permissions:
+  contents: write
+  pull-requests: read
+  issues: write
+
+# 같은 시각에 두 번 돌아 비용이 두 배가 되지 않도록 한 번에 하나만 실행
+concurrency:
+  group: mazkion-daily-learning
+  cancel-in-progress: false
+
+jobs:
+  learning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # 기본 브랜치의 신뢰된 스크립트만 체크아웃한다(night 브랜치 코드는 실행하지 않고 API로 읽기만 함)
+      - name: Checkout trusted scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Generate daily learning document
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          INPUT_DATE: ${{ inputs.date }}
+          INPUT_FORCE: ${{ inputs.force }}
+          # 비용 상한: 실행 1회 출력 토큰 상한(필요 시 저장소 변수로 조정)
+          MZK_LEARNING_MAX_TOKENS: ${{ vars.MZK_LEARNING_MAX_TOKENS || '12000' }}
+          MZK_LEARNING_MODEL: ${{ vars.MZK_LEARNING_MODEL || 'gpt-6-luna' }}
+        run: node .github/scripts/daily-learning.mjs
