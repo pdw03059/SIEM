@@ -29,14 +29,14 @@ function validateEnvironment() {
   for (const [name, value] of Object.entries(required)) {
     if (!value) throw new Error(`${name} is missing.`);
   }
-  if (!/^\\d+$/.test(ISSUE_NUMBER)) throw new Error("Invalid Issue number.");
+  if (!/^\d+$/.test(ISSUE_NUMBER)) throw new Error("Invalid Issue number.");
   if (EVENT_NAME === "issue_comment") {
     if (!ISSUE_COMMENT_ID || !GITHUB_EVENT_PATH) {
       throw new Error("Issue comment event metadata is missing.");
     }
     return;
   }
-  if (!PR_NUMBER || !/^\\d+$/.test(PR_NUMBER)) {
+  if (!PR_NUMBER || !/^\d+$/.test(PR_NUMBER)) {
     throw new Error("Invalid or missing PR number.");
   }
 }
