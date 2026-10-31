@@ -15,10 +15,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import tls from "node:tls";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { PROBE_NAMES } from "./harness/net-probe.mjs";
+import { PROBE_NAMES, classify } from "./harness/net-probe.mjs";
 import { SCENARIOS } from "./harness/scenarios.mjs";
 import { runScenario } from "./harness/run-scenario.mjs";
 
@@ -34,6 +36,71 @@ function probe(isolate, names = []) {
   if (r.error || r.status !== 0) return { error: r.error?.code || r.stderr || `exit ${r.status}` };
   return JSON.parse(r.stdout);
 }
+
+/* ---- 판정 기준 시험: 인증서 검증 오류만 "닿음", 그 밖의 TLS·네트워크 오류는 "실패" (격리 여부와 무관하게 항상 실행) ---- */
+test("판정 기준: 인증서 검증 오류(정확히 일치하는 코드)만 연결됨으로 본다", () => {
+  for (const code of ["ERR_TLS_CERT_ALTNAME_INVALID", "DEPTH_ZERO_SELF_SIGNED_CERT", "CERT_HAS_EXPIRED", "UNABLE_TO_VERIFY_LEAF_SIGNATURE"]) {
+    assert.equal(classify({ code }).ok, true, code);
+    assert.equal(classify({ cause: { code } }).ok, true, `fetch 형식(cause): ${code}`);
+  }
+});
+
+test("판정 기준: 인증서를 받았다는 증거가 없는 TLS 오류와 네트워크 오류는 실패로 본다", () => {
+  const notReached = [
+    "ERR_TLS_INVALID_PROTOCOL_VERSION", "ERR_TLS_HANDSHAKE_TIMEOUT", "ERR_TLS_INVALID_CONTEXT",
+    "ERR_SSL_WRONG_VERSION_NUMBER", "ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE",
+    "ERR_TLS_CERT_ALTNAME_INVALID_X", "CERT_", "UNABLE_TO_", // 앞부분만 같은 가짜 코드도 실패여야 함
+    "ENETUNREACH", "ECONNREFUSED", "EAI_AGAIN", "ETIMEDOUT", "TIMEOUT"
+  ];
+  for (const code of notReached) assert.equal(classify({ code }).ok, false, code);
+});
+
+/* ---- 판정 기준 실측: 내 컴퓨터 안(127.0.0.1)에서 실제 상황을 만들어 분류가 맞는지 확인 ----
+ * 외부 네트워크는 쓰지 않는다. 자체 서명 인증서는 시험할 때마다 임시 폴더에 새로 만들고 지운다(저장소에 키를 두지 않음).
+ *   (1) 자체 서명 인증서 서버에 접속 → 인증서를 실제로 받은 뒤 검증 오류 → "닿음"이어야 함
+ *   (2) 아무도 듣지 않는 포트에 접속 → 연결 거부 → "실패"여야 함
+ *   (3) 접속 전 로컬 설정 오류(존재하지 않는 TLS 버전 "TLSv9" 지정) → ERR_TLS_로 시작하지만 서버에 닿지 않음 → "실패"여야 함
+ *       서버가 듣고 있는 포트로 시도해서, 닿을 수 있는데도 로컬 오류로 끝난다는 것을 보인다.
+ *       예전 규칙(ERR_TLS_ 앞부분 일치)이었다면 (3)을 "닿음"으로 잘못 판정했을 것임을 함께 확인한다. */
+function tlsAttempt(options) {
+  return new Promise(resolve => {
+    try {
+      const s = tls.connect(options, () => { s.destroy(); resolve({ connected: true }); });
+      s.on("error", e => resolve({ error: e }));
+    } catch (e) {
+      resolve({ error: e }); // 설정 오류는 연결 시도 전에 바로 던져진다
+    }
+  });
+}
+
+test("판정 기준 실측: 인증서 오류=닿음, 연결 거부·로컬 설정 오류=실패", async t => {
+  const hasOpenssl = spawnSync("openssl", ["version"]).status === 0;
+  if (!hasOpenssl) return t.skip(`${INCONCLUSIVE}: openssl 없음`);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mzk-tls-"));
+  try {
+    const gen = spawnSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+      "-subj", "/CN=mzk-test", "-keyout", path.join(dir, "k.pem"), "-out", path.join(dir, "c.pem")]);
+    assert.equal(gen.status, 0, "시험용 인증서 생성 실패");
+    const server = tls.createServer({ key: fs.readFileSync(path.join(dir, "k.pem")), cert: fs.readFileSync(path.join(dir, "c.pem")) }, s => s.end());
+    await new Promise(r => server.listen(0, "127.0.0.1", r));
+    const port = server.address().port;
+
+    const selfSigned = await tlsAttempt({ host: "127.0.0.1", port, servername: "mzk-test" });
+    const local = await tlsAttempt({ host: "127.0.0.1", port, minVersion: "TLSv9" }); // 서버는 듣는 중, 로컬 설정 오류
+    await new Promise(r => server.close(r));
+    const closed = await tlsAttempt({ host: "127.0.0.1", port }); // 서버를 닫은 뒤 같은 포트 → 연결 거부
+
+    assert.equal(selfSigned.error?.code, "DEPTH_ZERO_SELF_SIGNED_CERT");
+    assert.equal(classify(selfSigned.error).ok, true, "인증서를 받은 경우는 닿음이어야 함");
+    assert.equal(closed.error?.code, "ECONNREFUSED");
+    assert.equal(classify(closed.error).ok, false, "연결 거부는 실패여야 함");
+    assert.match(local.error?.code ?? "", /^ERR_TLS_/, "로컬 설정 오류도 ERR_TLS_로 시작함(예전 규칙의 오판 사례)");
+    assert.equal(classify(local.error).ok, false, "로컬 설정 오류는 실패여야 함");
+    t.diagnostic(`자체 서명: ${selfSigned.error.code} → 닿음 / 닫힌 포트: ${closed.error.code} → 실패 / 로컬 설정: ${local.error.code} → 실패`);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 // unshare를 쓸 수 있는지 먼저 확인(못 쓰면 이 파일의 시험은 전부 판정 불가)
 const canIsolate = spawnSync("unshare", ["-rn", "true"]).status === 0;
@@ -54,7 +121,7 @@ for (const name of PROBE_NAMES) {
     if (!o.ok) return t.skip(`${INCONCLUSIVE}: 격리 밖에서도 연결 안 됨(${o.code})`);
     const i = inside.results[name];
     assert.equal(i.ok, false, `격리 안에서 ${name} 연결이 성공함 — 격리 실패`);
-    t.diagnostic(`격리 밖: 연결됨 / 격리 안: 차단(${i.code})`);
+    t.diagnostic(`격리 밖: ${o.note ?? "연결됨"} / 격리 안: 차단(${i.code})`);
   });
 }
 

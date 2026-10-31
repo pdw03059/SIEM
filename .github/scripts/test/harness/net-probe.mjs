@@ -20,15 +20,29 @@ import { spawnSync } from "node:child_process";
 
 const TIMEOUT_MS = 5000; // 경로 하나당 최대 대기 시간
 const HOST = "api.github.com";
-const IP = "8.8.8.8"; // DNS 없이 IP로 직접 연결 시험(이름 조회 실패와 연결 실패를 구분하기 위해). 인증서에 IP가 들어 있어 https도 됨
+const IP = "8.8.8.8"; // DNS 없이 IP로 직접 연결 시험(이름 조회 실패와 연결 실패를 구분하기 위해)
+// 주의(2026-10-31 실측): 이 작업 환경에서는 바깥 연결이 중간 게이트웨이를 거치며, 8.8.8.8:443이 내준 인증서는
+// 발급자 "Anthropic / Egress Gateway SDS Issuing CA", 대체 이름 DNS:dns.google 하나뿐이고 IP는 들어 있지 않았다.
+// 그래서 https://8.8.8.8 접속은 ERR_TLS_CERT_ALTNAME_INVALID로 끝난다. 이 오류는 인증서를 받은 뒤에야 나므로
+// "네트워크에 닿았다"는 증거로는 쓸 수 있지만, 닿은 상대가 8.8.8.8 자체라는 증거는 아니다(게이트웨이일 수 있음).
 
 /* ---- 1. 시도 하나를 제한 시간 안에서 실행하고 결과를 표준 형태로 바꾼다 ----
- * TLS 인증서 오류는 "상대 서버까지 연결은 성립했다"는 뜻이므로 연결됨(ok)으로 본다.
- * 이 시험이 보는 것은 "네트워크에 닿았는가"이지 인증서가 맞는가가 아니기 때문이다. */
-const TLS_REACHED = /^(ERR_TLS_|CERT_|UNABLE_TO_|DEPTH_ZERO|SELF_SIGNED)/;
-function classify(e) {
+ * 이 시험이 보는 것은 "네트워크에 닿았는가"이다. 그래서 상대가 보낸 인증서를 실제로 받은 뒤에만 생기는
+ * "인증서 검증 오류"는 연결됨(ok)으로 본다. 아래 목록과 글자가 정확히 같은 코드만 해당한다(앞부분 일치 아님).
+ * 그 밖의 TLS 오류(프로토콜 버전, 로컬 설정, 핸드셰이크 실패 등)는 인증서를 받았다는 증거가 없으므로
+ * 연결 실패로 본다 → 격리 밖에서 생기면 해당 경로는 "판정 불가"가 된다. */
+export const CERT_RECEIVED_CODES = new Set([
+  "ERR_TLS_CERT_ALTNAME_INVALID", // 인증서의 이름·IP가 접속 주소와 다름(Node가 인증서를 받은 뒤 검사)
+  "CERT_HAS_EXPIRED", "CERT_NOT_YET_VALID", "CERT_REVOKED", "CERT_UNTRUSTED", "CERT_REJECTED",
+  "CERT_SIGNATURE_FAILURE", "CERT_CHAIN_TOO_LONG",
+  "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN",
+  "UNABLE_TO_GET_ISSUER_CERT", "UNABLE_TO_GET_ISSUER_CERT_LOCALLY", "UNABLE_TO_VERIFY_LEAF_SIGNATURE"
+]); // OpenSSL·Node의 인증서 검증 오류 코드
+export function classify(e) {
   const code = e?.cause?.code || e?.code || String(e?.message || e);
-  return TLS_REACHED.test(code) ? { ok: true, note: `TLS 인증서 오류(${code}) — 연결은 성립` } : { ok: false, code };
+  return CERT_RECEIVED_CODES.has(code)
+    ? { ok: true, note: `인증서 검증 오류(${code}) — 인증서를 받았으므로 네트워크에 닿음` }
+    : { ok: false, code };
 }
 function attempt(fn) {
   return new Promise(resolve => {
