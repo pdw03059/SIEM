@@ -3,6 +3,7 @@
 // Node.js 20+
 
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 
 const {
   OPENAI_API_KEY,
@@ -931,6 +932,7 @@ async function reserveAiRun() {
   }
 
   let triggerKey;
+  let topicKey = "";
   if (EVENT_NAME === "issue_comment") {
     const payload = JSON.parse(await readFile(GITHUB_EVENT_PATH, "utf8"));
     const comment = payload.comment;
@@ -943,6 +945,12 @@ async function reserveAiRun() {
       return false;
     }
     triggerKey = `comment=${ISSUE_COMMENT_ID}`;
+    const normalizedTopic = String(comment.body || "")
+      .replace(/^\\/ai-review(?:\\s|$)/i, "")
+      .toLowerCase()
+      .replace(/\\s+/g, " ")
+      .trim();
+    topicKey = createHash("sha256").update(normalizedTopic).digest("hex").slice(0, 16);
   } else if (EVENT_NAME === "workflow_dispatch") {
     triggerKey = `run=${GITHUB_RUN_ID}`;
   } else {
@@ -969,7 +977,7 @@ async function reserveAiRun() {
     }
     for (const item of batch) {
       const body = String(item.body || "");
-      if (body.includes(markerPrefix)) reservations.push(body);
+      if (body.includes(markerPrefix)) reservations.push({ body, created_at: item.created_at });
       if (new Date(item.created_at).toISOString().slice(0, 7) < monthKey) {
         reachedOlderThanMonth = true;
       }
@@ -982,13 +990,24 @@ async function reserveAiRun() {
     throw new Error("Cannot verify monthly quota safely; refusing paid AI execution.");
   }
 
-  if (reservations.some(body => body.includes(triggerKey))) {
+  if (reservations.some(item => item.body.includes(triggerKey))) {
     console.log("Blocked: this trigger already reserved an AI run.");
     return false;
   }
 
-  const daily = reservations.filter(body => body.includes(`day=${dayKey}`)).length;
-  const monthly = reservations.filter(body => body.includes(`month=${monthKey}`)).length;
+  const daily = reservations.filter(item => item.body.includes(`day=${dayKey}`)).length;
+  const monthly = reservations.filter(item => item.body.includes(`month=${monthKey}`)).length;
+  if (topicKey) {
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const repeatedTopic = reservations.some(item =>
+      item.body.includes(`topic=${topicKey}`) &&
+      new Date(item.created_at).getTime() >= sevenDaysAgo
+    );
+    if (repeatedTopic) {
+      console.log("Blocked: an equivalent normalized topic was already discussed in the last 7 days.");
+      return false;
+    }
+  }
   const MAX_DAILY_RUNS = 3;
   const MAX_MONTHLY_RUNS = 30;
 
@@ -1001,7 +1020,7 @@ async function reserveAiRun() {
 
   // 모델 API 호출 전에 예약을 기록한다. 실패한 실행도 한도를 소비해 자동 재시도 과금을 막는다.
   await postIssueComment(
-    `${markerPrefix} day=${dayKey} month=${monthKey} ${triggerKey} run=${GITHUB_RUN_ID} -->\n🔒 MAZKION AI 실행 예약 (${daily + 1}/${MAX_DAILY_RUNS} daily, ${monthly + 1}/${MAX_MONTHLY_RUNS} monthly). 실패 시 자동 재시도하지 않습니다.`
+    `${markerPrefix} day=${dayKey} month=${monthKey} ${triggerKey} ${topicKey ? `topic=${topicKey}` : ""} run=${GITHUB_RUN_ID} -->\n🔒 MAZKION AI 실행 예약 (${daily + 1}/${MAX_DAILY_RUNS} daily, ${monthly + 1}/${MAX_MONTHLY_RUNS} monthly). 실패 시 자동 재시도하지 않습니다.`
   );
   return true;
 }
