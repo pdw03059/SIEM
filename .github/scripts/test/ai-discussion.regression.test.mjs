@@ -91,7 +91,7 @@ test("정상: 호출 순서 = PR → 파일 → GPT → Claude → GPT → 브�
 test("정상: 모델·출력 한도·저장 경로·브랜치", () => {
   const r = result("01-normal");
   const [gpt, claude, learn] = llmCalls(r);
-  assert.equal(gpt.body.model, "gpt-6-luna");
+  assert.equal(gpt.body.model, "INTENTIONAL-FAILURE-ci-negative-check"); // 의도적 실패: CI가 실패를 잡는지 확인용(이 브랜치 전용, 병합 금지)
   assert.equal(gpt.body.max_output_tokens, 5000);
   assert.equal(claude.body.model, "claude-sonnet-5");
   assert.equal(claude.body.max_tokens, 5000);
