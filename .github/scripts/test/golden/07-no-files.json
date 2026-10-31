@@ -1,0 +1,36 @@
+{
+  "description": "변경 파일 0개 → AI 호출 전 실패",
+  "exitCode": 1,
+  "stdout": [
+    "Reading PR #7..."
+  ],
+  "stderr": [
+    "MAZKION REVIEW FAILED: No changed files found in this PR."
+  ],
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://api.github.com/repos/pdw03059/SIEM/pulls/7",
+      "headers": {
+        "authorization": "<present>",
+        "x-api-key": "<absent>",
+        "anthropic-version": null,
+        "x-github-api-version": "2022-11-28"
+      },
+      "matched": "/pulls/7",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "url": "https://api.github.com/repos/pdw03059/SIEM/pulls/7/files?per_page=100",
+      "headers": {
+        "authorization": "<present>",
+        "x-api-key": "<absent>",
+        "anthropic-version": null,
+        "x-github-api-version": "2022-11-28"
+      },
+      "matched": "/pulls/7/files",
+      "body": null
+    }
+  ]
+}

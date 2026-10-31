@@ -1,0 +1,9 @@
+{
+  "description": "OPENAI_API_KEY 없음 → 어떤 요청도 보내기 전에 실패",
+  "exitCode": 1,
+  "stdout": [],
+  "stderr": [
+    "MAZKION REVIEW FAILED: OPENAI_API_KEY is missing."
+  ],
+  "requests": []
+}

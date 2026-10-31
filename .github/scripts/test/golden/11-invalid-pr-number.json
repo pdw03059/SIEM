@@ -1,0 +1,9 @@
+{
+  "description": "PR 번호에 숫자 외 문자 → 요청 전에 실패",
+  "exitCode": 1,
+  "stdout": [],
+  "stderr": [
+    "MAZKION REVIEW FAILED: Invalid PR number."
+  ],
+  "requests": []
+}
