@@ -1,0 +1,95 @@
+# MAZKION(마즈키온) — 성경 속 왕의 사관 '마즈키르(מַזְכִּיר, 삼하 8:16)' + 뿌리 '자카르(זָכַר, 기억하다)' + 빛보다 빠른 '-ion': "모든 일을 빠짐없이, 가장 빠르게 기록하고 결코 잊지 않는 자" (ORIGIN.md)
+#
+# ci.yml — 기본 CI (자동화 개선 2-1단계)
+# 무엇: GitHub 제공 실행기에서 (1) C 코드를 경고 0으로 빌드하고 (2) AI 리뷰 스크립트 회귀 시험을 Node 20·22에서 실행한다.
+# 왜: 지금까지의 시험 통과는 Claude 작업 공간에서의 실행 보고뿐이었다. GitHub 실행기 기록은 제3자가 확인할 수 있는 증거다.
+# 비용: 공개 저장소의 GitHub 제공 실행기만 쓰고, 시크릿·유료 API를 쓰지 않는다(권한은 읽기 전용).
+# 판정 불가: 네트워크 격리 시험은 실행기에서 unshare 등이 안 되면 "건너뜀(SKIP)"으로 나온다.
+#           건너뛴 수는 실행 요약에 경고로 표시하며, 통과로 세지 않는다.
+
+name: MAZKION CI
+
+on:
+  push:
+    branches: [main, "night/**", "ai/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  c-build:
+    name: C 빌드 (경고 0)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 컴파일러 버전
+        run: gcc --version | head -1
+
+      - name: stage1 빌드 (-Werror로 경고를 오류로 취급)
+        run: make -C stage1 CFLAGS="-O2 -g -Wall -Wextra -std=c11 -Werror"
+
+  ai-review-tests:
+    name: AI 리뷰 스크립트 시험 (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: 시험 도구 설치 (strace — DNS 시도 기록 확인용)
+        run: sudo apt-get install -y --no-install-recommends strace >/dev/null
+
+      - name: 실행 환경 기록 (격리 시험 가능 여부)
+        run: |
+          node --version
+          echo "unshare -rn: $(unshare -rn true 2>&1 && echo 가능 || echo 불가)"
+          echo "apparmor_restrict_unprivileged_userns: $(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 없음)"
+          echo "strace: $(strace -V 2>/dev/null | head -1 || echo 없음)"
+          echo "openssl: $(openssl version 2>/dev/null || echo 없음)"
+
+      - name: 회귀·통신 위치·네트워크 격리 시험
+        shell: bash
+        run: |
+          if ! ls .github/scripts/test/*.test.mjs >/dev/null 2>&1; then
+            echo "::notice::시험 파일이 없는 브랜치입니다. 건너뜁니다."
+            exit 0
+          fi
+          set -o pipefail
+          node --test .github/scripts/test/*.test.mjs 2>&1 | tee test-output.txt
+          tests=$(grep -E '^# tests ' test-output.txt | awk '{print $3}')
+          pass=$(grep -E '^# pass ' test-output.txt | awk '{print $3}')
+          fail=$(grep -E '^# fail ' test-output.txt | awk '{print $3}')
+          skip=$(grep -E '^# skipped ' test-output.txt | awk '{print $3}')
+          {
+            echo "### Node ${{ matrix.node }} 시험 결과"
+            echo "| 전체 | 통과 | 실패 | 건너뜀(판정 불가) |"
+            echo "|---:|---:|---:|---:|"
+            echo "| $tests | $pass | $fail | $skip |"
+            if [ "${skip:-0}" != "0" ]; then
+              echo ""
+              echo "건너뛴 시험(통과 아님):"
+              grep -E '# SKIP' test-output.txt | sed 's/^/- /'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${skip:-0}" != "0" ]; then
+            echo "::warning::판정 불가로 건너뛴 시험 ${skip}개 — 통과로 세지 않음"
+          fi
