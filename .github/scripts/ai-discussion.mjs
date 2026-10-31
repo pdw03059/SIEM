@@ -42,7 +42,7 @@ function validateEnvironment() {
 }
 
 // ==========================================
-// // 2. GitHub API 공통 요청
+// 2. GitHub API 공통 요청
 // ==========================================
 
 async function githubRequest(path, options = {}) {
