@@ -25,8 +25,9 @@ permissions:
   pull-requests: read
   issues: write
 
+# 모든 AI 실행을 전역 직렬화해 서로 다른 이벤트의 동시 예산 초과를 방지한다.
 concurrency:
-  group: mazkion-ai-${{ github.event.issue.number || github.event.pull_request.number || inputs.pr_number || 'manual' }}
+  group: mazkion-ai-global
   cancel-in-progress: false
 
 jobs:
@@ -63,4 +64,5 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number || '1' }}
           ISSUE_COMMENT_ID: ${{ github.event.comment.id }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: node .github/scripts/ai-discussion.mjs
