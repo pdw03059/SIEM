@@ -978,7 +978,9 @@ async function reserveAiRun() {
     }
     for (const item of batch) {
       const body = String(item.body || "");
-      if (body.includes(markerPrefix)) reservations.push({ body, created_at: item.created_at });
+      if (body.includes(markerPrefix) || body.includes("MAZKION_DAILY_COLLAB_RESERVATION")) {
+        reservations.push({ body, created_at: item.created_at });
+      }
       if (new Date(item.created_at).toISOString().slice(0, 7) < monthKey) {
         reachedOlderThanMonth = true;
       }
