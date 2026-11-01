@@ -1,0 +1,66 @@
+# MAZKION(마즈키온) — 일일 기술 학습 교재 (설명: .github/scripts/DAILY_LEARNING.md)
+name: MAZKION Daily Learning
+
+on:
+  schedule:
+    # 매일 08:10 KST(= 전날 23:10 UTC). GitHub 예약 실행은 지연·누락될 수 있으므로
+    # 스크립트가 최근 7일 누락 날짜를 찾아 알림에 적는다(수동 실행으로 보충).
+    - cron: "10 23 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "대상 날짜 YYYY-MM-DD (비우면 한국 시간 어제)"
+        required: false
+        type: string
+      force:
+        description: "같은 날짜 교재가 있어도 다시 만들기"
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: "점검 모드: 읽기만 하고 OpenAI 호출·저장·댓글 없음(비용 0)"
+        required: false
+        default: false
+        type: boolean
+
+# 필요한 권한만: reports 브랜치에 교재 저장(contents), PR 찾기(pull-requests 읽기), 알림 댓글(issues)
+permissions:
+  contents: write
+  pull-requests: read
+  issues: write
+
+# 같은 시각에 두 번 돌아 비용이 두 배가 되지 않도록 한 번에 하나만 실행
+concurrency:
+  group: mazkion-daily-learning
+  cancel-in-progress: false
+
+jobs:
+  learning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # 기본 브랜치의 신뢰된 스크립트만 체크아웃(night 코드는 실행하지 않고 API로 읽기만 함).
+      # 외부 액션은 커밋 SHA로 고정한다(v4.4.0).
+      - name: Checkout trusted scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      # 실행기에 설치된 Node를 쓴다(외부 setup 액션 의존 제거). 20 미만이면 중단.
+      - name: Check Node.js version
+        run: node -e "const v=+process.versions.node.split('.')[0]; console.log('node', process.version); if (v < 20) process.exit(1)"
+
+      - name: Generate daily learning document
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          INPUT_DATE: ${{ inputs.date }}
+          INPUT_FORCE: ${{ inputs.force }}
+          MZK_DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          # 비용 상한(실행 1회 출력 토큰)과 모델·알림 이슈는 저장소 변수로 조정 가능
+          MZK_LEARNING_MAX_TOKENS: ${{ vars.MZK_LEARNING_MAX_TOKENS || '12000' }}
+          MZK_LEARNING_MODEL: ${{ vars.MZK_LEARNING_MODEL || 'gpt-6-luna' }}
+          MZK_LEARNING_ISSUE: ${{ vars.MZK_LEARNING_ISSUE || '1' }}
+        run: node .github/scripts/daily-learning.mjs

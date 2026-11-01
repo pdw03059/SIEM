@@ -1,0 +1,60 @@
+name: MAZKION Daily AI Collaboration
+
+on:
+  schedule:
+    # 매일 08:00 KST = 전날 23:00 UTC
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "검토할 night/YYYY-MM-DD 브랜치 날짜 (비우면 한국 시간 어제)"
+        required: false
+        type: string
+      force_retry:
+        description: "같은 날짜의 예약된 실패 실행을 확인 후 재시도"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: mazkion-daily-ai-collaboration
+  cancel-in-progress: false
+
+jobs:
+  collaborate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout trusted automation
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Check Node.js version
+        run: node -e "const v=+process.versions.node.split('.')[0]; console.log('node', process.version); if (v < 20) process.exit(1)"
+
+      - name: Validate automation JavaScript syntax
+        run: |
+          node --check .github/scripts/scheduled-collaboration.mjs
+          node --check .github/scripts/ai-discussion.mjs
+          node --check .github/scripts/daily-learning.mjs
+
+      - name: Run Claude-led daily collaboration
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          MZK_TARGET_DATE: ${{ inputs.target_date }}
+          MZK_FORCE_RETRY: ${{ inputs.force_retry && 'true' || 'false' }}
+          MZK_OPENAI_MODEL: ${{ vars.MZK_OPENAI_MODEL || 'gpt-6-luna' }}
+          MZK_ANTHROPIC_MODEL: ${{ vars.MZK_ANTHROPIC_MODEL || 'claude-sonnet-5' }}
+        run: node .github/scripts/scheduled-collaboration.mjs

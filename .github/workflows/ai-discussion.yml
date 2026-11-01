@@ -1,8 +1,9 @@
-name: MAZKION AI Code Review
+name: MAZKION AI Collaboration
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  # 사람이 Issue #1에 새 댓글을 남기면 양방향 AI 토론을 실행한다.
+  issue_comment:
+    types: [created]
 
   workflow_dispatch:
     inputs:
@@ -21,14 +22,24 @@ permissions:
   pull-requests: read
   issues: write
 
+# 모든 AI 실행을 전역 직렬화해 서로 다른 이벤트의 동시 예산 초과를 방지한다.
 concurrency:
-  group: maz kion-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: mazkion-ai-global
   cancel-in-progress: false
 
 jobs:
   ai-review:
+    # Issue #1의 사람 댓글만 토론을 시작한다. AI 봇 댓글은 루프 방지를 위해 제외한다.
+    if: >-
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.number == 1 &&
+       !github.event.issue.pull_request &&
+       github.event.comment.user.type != 'Bot' &&
+       github.event.comment.user.login != 'github-actions[bot]')
+      ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout trusted workflow files
@@ -36,13 +47,15 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
 
-      - name: Run MAZKION AI Review
+      - name: Run MAZKION AI collaboration
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-          ISSUE_NUMBER: ${{ inputs.issue_number || '1' }}
-
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number || '1' }}
+          ISSUE_COMMENT_ID: ${{ github.event.comment.id }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: node .github/scripts/ai-discussion.mjs
