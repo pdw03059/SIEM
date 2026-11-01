@@ -145,7 +145,7 @@ async function reserve(date) {
   const now = new Date();
   const day = now.toISOString().slice(0, 10);
   const month = day.slice(0, 7);
-  const reservations = comments.filter(c => String(c.body || "").includes("MAZKION_DAILY_COLLAB_RESERVATION"));
+  const reservations = comments.filter(c => { const body = String(c.body || ""); return body.includes("MAZKION_DAILY_COLLAB_RESERVATION") || body.includes("MAZKION_AI_RESERVATION:"); });
   const daily = reservations.filter(c => String(c.body || "").includes(`day=${day}`)).length;
   const monthly = reservations.filter(c => String(c.body || "").includes(`month=${month}`)).length;
   if (daily >= 3 || monthly >= 30) throw new Error("AI collaboration quota reached (3/day, 30/month UTC).");
