@@ -1,0 +1,40 @@
+name: MAZKION ChatGPT PR Review
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review"
+        required: true
+        type: string
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+concurrency:
+  group: mazkion-chatgpt-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+jobs:
+  independent-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted review script
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Check Node.js
+        run: node -e "if (+process.versions.node.split('.')[0] < 20) process.exit(1)"
+      - name: Review exact PR diff with ChatGPT
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          MZK_OPENAI_MODEL: ${{ vars.MZK_OPENAI_MODEL || 'gpt-6-luna' }}
+        run: node .github/scripts/pr-independent-review.mjs
