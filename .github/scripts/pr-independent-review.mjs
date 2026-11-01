@@ -5,7 +5,7 @@ const {
 } = process.env;
 if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is missing; independent review cannot be reported as complete.");
 for (const [k,v] of Object.entries({GITHUB_TOKEN,GITHUB_REPOSITORY,PR_NUMBER})) if(!v) throw new Error(`${k} is missing`);
-if (!/^\\d+$/.test(PR_NUMBER)) throw new Error("Invalid PR_NUMBER.");
+if (!/^\d+$/.test(PR_NUMBER)) throw new Error("Invalid PR_NUMBER.");
 const headers={Authorization:`Bearer ${GITHUB_TOKEN}`,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","Content-Type":"application/json"};
 async function gh(path,options={}) {
  const r=await fetch(`https://api.github.com/repos/${GITHUB_REPOSITORY}${path}`,{...options,headers:{...headers,...options.headers}});
