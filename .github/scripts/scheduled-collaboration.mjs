@@ -93,8 +93,19 @@ async function collectNightChanges(date) {
   };
 }
 
+async function loadIssueComments() {
+  const all = [];
+  for (let page = 1; page <= 20; page++) {
+    const batch = await github(`/issues/${ISSUE}/comments?per_page=100&sort=created&direction=desc&page=${page}`);
+    if (!Array.isArray(batch)) throw new Error("GitHub returned an invalid Issue comment page.");
+    all.push(...batch);
+    if (batch.length < 100) return all;
+  }
+  throw new Error("Issue #1 exceeds the safe 2,000-comment scan limit; refusing quota/idempotency checks with incomplete history.");
+}
+
 async function reserve(date) {
-  const comments = await github(`/issues/${ISSUE}/comments?per_page=100`) || [];
+  const comments = await loadIssueComments();
   const complete = comments.some(c => String(c.body || "").includes(`${MARKER}${date}:complete -->`));
   if (complete) {
     console.log(`Already completed for ${date}; skipping duplicate run.`);
