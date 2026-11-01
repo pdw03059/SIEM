@@ -76,6 +76,26 @@ async function collectNightChanges(date) {
   if (diff.length > MAX_DIFF_CHARS) {
     throw new Error(`변경 diff가 ${MAX_DIFF_CHARS}자를 초과합니다. 검토 범위를 자동으로 잘라 정확성을 훼손하지 않도록 중단했습니다.`);
   }
+  // For changed source/config files, also load the current full file from the night branch.
+  // This gives the reviewers surrounding context beyond GitHub's line patches.
+  const sourcePattern = /\.(?:c|h|cc|cpp|hpp|py|go|rs|js|mjs|ts|tsx|sh|json|ya?ml)$/i;
+  const fullSources = [];
+  let sourceChars = 0;
+  for (const file of files) {
+    const baseName = file.filename.split("/").pop();
+    if (file.status === "removed" || (!sourcePattern.test(file.filename) && !["Makefile", "Dockerfile"].includes(baseName))) continue;
+    const encodedPath = file.filename.split("/").map(encodeURIComponent).join("/");
+    const blob = await github(`/contents/${encodedPath}?ref=${encodeURIComponent(branchName)}`);
+    if (blob.encoding !== "base64" || typeof blob.content !== "string") {
+      throw new Error(`Changed source file ${file.filename} could not be read safely.`);
+    }
+    const source = Buffer.from(blob.content.replace(/\n/g, ""), "base64").toString("utf8");
+    sourceChars += source.length;
+    if (sourceChars > 60000) throw new Error("Changed full source exceeds 60,000 characters; refusing partial review.");
+    fullSources.push(`### Full source: ${file.filename}\n\`\`\`\n${source}\n\`\`\``);
+  }
+  if (fullSources.length) diff += `\n\n[Current full contents of changed source files]\n${fullSources.join("\n\n")}\n`;
+  if (diff.length > 110000) throw new Error("Combined diff and full source context exceeds 110,000 characters.");
   return {
     date, branch: branchName, base: repo.default_branch,
     headSha: branch.commit.sha, files: files.length, diff,
