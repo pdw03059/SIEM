@@ -1,4 +1,5 @@
 // MAZKION scheduled AI collaboration — Node.js 20+
+import { scanSources, describeFindings } from "./learning/secrets.mjs";
 const {
   OPENAI_API_KEY, ANTHROPIC_API_KEY, GITHUB_TOKEN, GITHUB_REPOSITORY,
   GITHUB_ACTOR, GITHUB_EVENT_NAME, GITHUB_RUN_ID = "local",
@@ -53,16 +54,6 @@ async function post(body) {
   await github(`/issues/${ISSUE}/comments`, {
     method: "POST", body: JSON.stringify({ body: body.slice(0, 65000) })
   });
-}
-
-function detectSecrets(text) {
-  const patterns = [
-    /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
-    /\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/,
-    /\bAKIA[0-9A-Z]{16}\b/,
-    /(?im)^\s*(?:password|passwd|client_secret|api_key|access_token)\s*[:=]\s*["']?[^\s"'#]{8,}/
-  ];
-  return patterns.some(re => re.test(text));
 }
 
 async function collectNightChanges(date) {
@@ -174,9 +165,11 @@ async function run() {
     console.log(source.skipped);
     return;
   }
-  if (detectSecrets(source.diff)) {
-    await post(`## ⛔ MAZKION AI 협업 중단 — ${date}\n\n변경 diff에서 비밀정보 패턴이 탐지되어 외부 AI로 전송하지 않았습니다. 저장소에서 해당 값을 점검하고 비밀정보를 폐기·교체한 뒤 다시 실행하십시오.`);
-    throw new Error("Potential secret detected in night diff; refusing external transmission.");
+  const secretFindings = scanSources([{ name: `night/${date} 변경 자료`, text: source.diff }]);
+  if (secretFindings.length) {
+    const detail = describeFindings(secretFindings);
+    await post(`## ⛔ MAZKION AI 협업 중단 — ${date}\n\n민감정보 검사에서 ${secretFindings.length}건이 탐지되어 외부 AI로 전송하지 않았습니다. 탐지 값 자체는 기록하지 않았습니다.\n\n${detail}\n\n해당 정보를 제거하고 필요한 키·비밀번호를 폐기·교체한 뒤 재실행하십시오.`);
+    throw new Error(`Potential sensitive data detected (${secretFindings.length} finding(s)); refusing external transmission.`);
   }
   if (!(await reserve(date))) return;
 
