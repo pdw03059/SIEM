@@ -15,7 +15,8 @@ const {
   EVENT_NAME = "workflow_dispatch",
   ISSUE_COMMENT_ID,
   GITHUB_EVENT_PATH,
-  GITHUB_RUN_ID = "local"
+  GITHUB_RUN_ID = "local",
+  GITHUB_ACTOR
 } = process.env;
 
 const API_VERSION = "2022-11-28";
