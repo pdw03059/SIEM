@@ -1092,14 +1092,14 @@ async function runIssueCollaboration() {
     issueContext, "", "1차: 새 안건에 대한 ChatGPT 독립 검토"
   );
   await postIssueComment(
-    `## ChatGPT — 독립 기술 검토\n\n안건: ${topic}\n\n${gptOpening.text}\n\n---\n자동 토론 1/3 · 사용자 승인 전 코드 변경 없음`
+    `## ChatGPT — 독립 기술 검토\n\n안건: ${topic}\n\n${gptOpening.text}\n\n---\n자동 토론 1/4 · 사용자 승인 전 코드 변경 없음`
   );
 
   const claudeReply = await respondToIssueWithClaude(
     issueContext, gptOpening.text, "1차: GPT 검토에 대한 구현자 관점의 반론과 대안"
   );
   await postIssueComment(
-    `## Claude — 구현자 관점의 반론 및 대안\n\n안건: ${topic}\n\n${claudeReply.text}\n\n---\n자동 토론 2/3 · 사용자 승인 전 코드 변경 없음`
+    `## Claude — 구현자 관점의 반론 및 대안\n\n안건: ${topic}\n\n${claudeReply.text}\n\n---\n자동 토론 2/4 · 사용자 승인 전 코드 변경 없음`
   );
 
   const gptCrossReview = await reviewIssueWithOpenAI(
