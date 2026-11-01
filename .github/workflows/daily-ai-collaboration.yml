@@ -38,6 +38,12 @@ jobs:
       - name: Check Node.js version
         run: node -e "const v=+process.versions.node.split('.')[0]; console.log('node', process.version); if (v < 20) process.exit(1)"
 
+      - name: Validate automation JavaScript syntax
+        run: |
+          node --check .github/scripts/scheduled-collaboration.mjs
+          node --check .github/scripts/ai-discussion.mjs
+          node --check .github/scripts/daily-learning.mjs
+
       - name: Run Claude-led daily collaboration
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
