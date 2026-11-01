@@ -1,0 +1,58 @@
+name: MAZKION C Engine CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ["stage1/**", ".github/workflows/c-engine-ci.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: mazkion-c-engine-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  c-engine-build:
+    name: C11 build (Stage 1 prototype)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install compiler and build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential
+      - name: Record toolchain
+        run: |
+          gcc --version
+          make --version
+          uname -a
+      - name: Build Stage 1 C programs
+        working-directory: stage1
+        run: |
+          set -euo pipefail
+          make clean
+          make
+          test -x minilogd
+          test -x minilog-query
+      - name: Verify generated binaries
+        working-directory: stage1
+        run: |
+          file minilogd minilog-query
+          ldd minilogd
+          ldd minilog-query
+      - name: Report test scope
+        if: always()
+        run: |
+          {
+            echo "### MAZKION C Engine CI"
+            echo "- Ubuntu runner: ubuntu-latest"
+            echo "- Compiler: GCC C11"
+            echo "- Verified: Stage 1 compile and executable generation"
+            echo "- Not yet claimed: unit tests, UDP end-to-end tests, crash recovery, load/loss benchmarks"
+            echo "- Commit: `$GITHUB_SHA`"
+          } >> "$GITHUB_STEP_SUMMARY"
