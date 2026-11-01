@@ -28,6 +28,12 @@ C로 개발하는 고성능 오픈소스 SIEM — 에이전트, 전달 서버, �
 | Reliable scheduling | Scheduler health monitoring and built-in backfill (replay) of batch rules |
 | Time sanity | Store by receive time; quarantine events with skewed device clocks |
 
+## Performance targets / 성능 목표
+
+- Single x86 server: **≥5.4 million UDP events/s** for receive + persist + index, with zero loss under the defined test window.
+- Per node: **≥600 GB/day** while sustaining the defined concurrent search workload.
+- Large search: at least 2.5 billion records, with response time **≤50% of the baseline** under identical conditions.
+- These are engineering targets, **not achieved benchmark results**. Vendor reference figures have incomplete public test conditions; see [the benchmark protocol](docs/BENCHMARK_PLAN.md) and [architecture rationale](docs/ARCHITECTURE.md).
 ## Languages / 언어
 - **C (C11)** — agent, forwarder, analysis server, web API
 - **TypeScript + React** — web UI

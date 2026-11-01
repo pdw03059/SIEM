@@ -13,7 +13,7 @@
 | 5 | 접속 프로파일, 행위 프로파일 | PLAN 6장 | A·B·F |
 | 6 | 모든 수집 모델: Syslog·파일·SFTP/FTP·DB·Windows 이벤트·SNMP·Flow·API·Kafka 등 | PLAN 6장 | A~D |
 | 7 | 스트림 쿼리 | PLAN 6장 | B |
-| 8 | 성능 우위: 단일 서버 30만 EPS, 100GB/일 키워드 검색 수 초, 테이블 장애 격리 | PLAN 5장, DECISIONS | A·B |
+| 8 | 성능 우위(2026-10-31 확정): 단일 x86 서버 UDP 수집·저장·인덱싱 540만 EPS 이상, 노드당 600GB/일 이상(검색 부하 동시 처리), 25억 건 이상 검색은 동일 조건 기준 응답 시간의 1/2 이하, 테이블 장애 격리. 출처·조건·검증 상태는 BENCHMARK_PLAN.md 참조 | PLAN 5장, DECISIONS, ARCHITECTURE, BENCHMARK_PLAN | A·B |
 | 9 | 외부 DB(MariaDB) 없이 동작 | DECISIONS | A |
 
 ## 2. 쿼리·매뉴얼·웹사이트
