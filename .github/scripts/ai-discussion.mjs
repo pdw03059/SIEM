@@ -925,6 +925,59 @@ ${round}
 }
 
 // AI 비용 방어: 저장소 소유자만 실행, 명시적 Issue 명령, 중복 방지, 일일·월간 전역 한도.
+async function finalizeIssueWithClaude(issueContext, gptReview, claudeReply, gptCrossReview) {
+  const prompt = `
+너는 MAZKION 개발팀장 Claude다. 이번 Issue 안건에 대한 마지막 차례로서 양측의 토론을 종합하고 발주자에게 최종 승인 여부를 요청하라.
+
+[Issue 맥락]
+${issueContext}
+
+[ChatGPT 1차 독립 검토]
+${gptReview}
+
+[Claude 구현자 반론]
+${claudeReply}
+
+[ChatGPT 교차 검증]
+${gptCrossReview}
+
+요구사항:
+1. 합의된 사항, 의견이 다른 사항, 근거가 부족한 사항을 분리하라.
+2. 미해결 쟁점은 양측의 근거와 함께 남기고 억지로 합의하지 마라.
+3. 최종 권고와 그 이유, 위험도, 추가 테스트·증거 확보 계획을 제시하라.
+4. 승인받기 전에는 제품 코드 수정, 설계 확정, PR 생성·병합을 하지 마라.
+5. 이번 자동화에서는 이 최종 보고 댓글만 작성하며 저장소 파일을 수정하지 마라.
+6. 마지막에 발주자가 승인/보류를 명확히 답할 수 있도록 구체적인 승인 요청을 작성하라.
+
+출력 형식:
+# Claude 팀장 최종 기술 판단
+# 합의 사항
+# 미해결 쟁점과 양측 근거
+# 위험도 및 출시 차단 여부
+# 권고 작업과 검증 계획 (승인 전 실행 금지)
+# 발주자 최종 승인 요청
+
+한국어로 구체적으로 작성하라. 실제로 확인하지 않은 테스트를 통과했다고 주장하지 마라.
+  `;
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-5",
+      max_tokens: 6000,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(`Claude final report API error ${response.status}: ${data.error?.message || "Unknown error"}`);
+  const answer = (data.content || []).filter(item => item.type === "text").map(item => item.text).join("").trim();
+  if (!answer || data.stop_reason !== "end_turn") throw new Error("Claude final report was incomplete.");
+  return { text: answer, usage: data.usage || {} };
+}
 async function reserveAiRun() {
   const [owner] = GITHUB_REPOSITORY.split("/");
   if (GITHUB_ACTOR !== owner) {
@@ -1053,9 +1106,16 @@ async function runIssueCollaboration() {
     issueContext, claudeReply.text, "2차: Claude 반론의 타당성을 재검토하고 합의·미해결 쟁점을 정리"
   );
   await postIssueComment(
-    `## ChatGPT — Claude 답변 재검토\n\n안건: ${topic}\n\n${gptCrossReview.text}\n\n---\n이번 자동 토론은 종료합니다. 추가 토론은 사용자가 새 댓글을 남기면 시작됩니다. 코드 수정 및 병합은 사용자 승인 전까지 수행하지 않습니다.`
+    `## ChatGPT — Claude 답변 재검토\n\n안건: ${topic}\n\n${gptCrossReview.text}\n\n---\n자동 토론 3/4 · 최종 판단은 Claude 팀장이 종합합니다.`
   );
-  console.log("Issue-based MAZKION AI collaboration completed.");
+
+  const claudeFinal = await finalizeIssueWithClaude(
+    issueContext, gptOpening.text, claudeReply.text, gptCrossReview.text
+  );
+  await postIssueComment(
+    `## Claude — 팀장 최종 종합 및 발주자 승인 요청\n\n안건: ${topic}\n\n${claudeFinal.text}\n\n---\n**승인 경계:** 발주자 승인 전 제품 코드 수정·설계 확정·PR 병합은 수행하지 않습니다.`
+  );
+  console.log("Issue-based MAZKION AI collaboration completed (4 stages).");
 }
 
 // ==========================================
