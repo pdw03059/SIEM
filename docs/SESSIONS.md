@@ -6,3 +6,6 @@ MAZKION 개발에 쓰인 모든 대화방(세션)의 목록입니다. 대화방�
 | 날짜(KST) | 시작 | 종류 | 대화방 링크 | 한 일 | PR |
 |---|---|---|---|---|---|
 | 2026-10-30 | 11:40 | 착수(발주자와 직접) | [세션](https://claude.ai/code/session_01AnWDGXac7jQ4fS9vS2KztW) | 기능 분석(FEATURES.md), 사업·수익 계획서, 야간 운영 규칙, 이름 MAZKION 확정, 요구사항 49개 정리(REQUIREMENTS.md), 시스템 뷰·현장 교훈·API·AI·설치·실험실 계획 | main 직접 |
+| 2026-10-31 | 20:08 | 정기 20:07 | [세션](https://claude.ai/code/session_01AnWDGXS7dzsat6G19faU1a) | 잠금 커밋만 남기고 개발 산출물 없음(같은 시간대 발주자 결정 커밋 6건) — 잠금 미해제 | — |
+| 2026-11-01 | 02:08 | 정기 02:07 | [세션](https://claude.ai/code/session_01AnWDGYPj3kezHfbdBma6NA) | 잠금 커밋만 남기고 개발 산출물 없음 — 잠금 미해제(다음 세션이 확인) | — |
+| 2026-11-02 | 04:55 | 정기(지연 시작, 11-01 20:07 계열) | [세션](https://claude.ai/code/session_01AnWDGWDBVncUkymXJQQneb) | 직전 3회 무결과 경보, ARCHITECTURE.md v0.1·CODING_RULES.md(+등록 표 예제) 초안 | [PR #7](https://github.com/pdw03059/SIEM/pull/7) |
